@@ -11,9 +11,9 @@ import androidx.core.app.NotificationCompat
 import com.jrweb.avangvpn.network.SubParser
 import hev.htproxy.TProxyService
 import kotlinx.coroutines.flow.MutableStateFlow
+import libv2ray.CoreCallbackHandler
+import libv2ray.CoreController
 import libv2ray.Libv2ray
-import libv2ray.V2RayPoint
-import libv2ray.V2RayVPNServiceSupportsSet
 import java.io.File
 
 class AvangVpnService : VpnService() {
@@ -27,7 +27,7 @@ class AvangVpnService : VpnService() {
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
-    private var v2rayPoint: V2RayPoint? = null
+    private var coreController: CoreController? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -52,20 +52,19 @@ class AvangVpnService : VpnService() {
         startForeground(1, notification)
 
         try {
-            v2rayPoint = Libv2ray.newV2RayPoint(object : V2RayVPNServiceSupportsSet {
+            Libv2ray.initCoreEnv(filesDir.absolutePath, "")
+
+            coreController = Libv2ray.newCoreController(object : CoreCallbackHandler {
                 override fun onEmitStatus(p0: Long, p1: String?): Long = 0
-                override fun prepare(): Long = 0
-                override fun protect(fd: Long): Boolean = this@AvangVpnService.protect(fd.toInt())
-                override fun setup(p0: String?): Long = 0
+                override fun startup(): Long = 0
                 override fun shutdown(): Long {
                     stopVpn()
                     return 0
                 }
-            }, false)
+            })
 
-            v2rayPoint?.configureFileContent = SubParser.buildXrayJsonFromUri(configUri, 10808)
-            v2rayPoint?.domainName = "127.0.0.1:10808"
-            v2rayPoint?.runLoop(false)
+            val xrayConfigJson = SubParser.buildXrayJsonFromUri(configUri, 10808)
+            coreController?.startLoop(xrayConfigJson)
 
             val builder = Builder()
                 .setSession("Avang VPN")
@@ -105,7 +104,7 @@ class AvangVpnService : VpnService() {
         isRunningFlow.value = false
         try { TProxyService.TProxyStopService() } catch (e: Throwable) { Log.e("AvangVPN", "TProxy Stop Error", e) }
         try {
-            v2rayPoint?.stopLoop()
+            coreController?.stopLoop()
             vpnInterface?.close()
         } catch (_: Throwable) {}
         vpnInterface = null
