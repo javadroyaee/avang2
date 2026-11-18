@@ -64,7 +64,7 @@ class AvangVpnService : VpnService() {
             })
 
             val xrayConfigJson = SubParser.buildXrayJsonFromUri(configUri, 10808)
-            coreController?.startLoop(xrayConfigJson)
+            coreController?.startLoop(xrayConfigJson, 0)
 
             val builder = Builder()
                 .setSession("Avang VPN")
